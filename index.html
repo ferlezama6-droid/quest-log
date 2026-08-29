@@ -1,0 +1,2031 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>Quest Log — Tareas y pendientes</title>
+
+<!-- PWA: instalable + funciona sin conexión -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0B1220">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Quest Log">
+<meta name="mobile-web-app-capable" content="yes">
+
+<style>
+  :root{
+    --bg: #0B1220;
+    --panel: #101A2C;
+    --panel-2: #16223A;
+    --grid-line: #22314E;
+    --ink: #E7ECF5;
+    --muted: #7C8AA8;
+    --accent: #34D6C4;
+    --accent-2: #1E9E8F;
+    --xp: #FFC24B;
+    --done: #3ED66B;
+    --danger: #FF4D5E;
+    --pri-alta: #FF6B6B;
+    --pri-media: #FFC24B;
+    --pri-baja: #6FCF97;
+  }
+
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body{
+    margin:0;
+    background: radial-gradient(900px 500px at 15% -10%, #142138 0%, var(--bg) 55%);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    padding: 14px 14px 40px;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  .wrap{ max-width: 560px; margin: 0 auto; position: relative; }
+
+  /* ---------- HUD ---------- */
+  .hud{
+    background: linear-gradient(135deg, #16223A 0%, #101A2C 100%);
+    border: 1px solid var(--grid-line);
+    border-radius: 16px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hud::after{
+    content:"";
+    position:absolute; inset:0;
+    background: radial-gradient(circle at 90% -20%, rgba(52,214,196,.18), transparent 60%);
+    pointer-events:none;
+  }
+  .hud-top{ display:flex; align-items:center; justify-content: space-between; margin-bottom: 10px; }
+  .hud-title{ display:flex; align-items:center; gap:8px; }
+  .hud-title .badge-icon{
+    width: 34px; height:34px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display:flex; align-items:center; justify-content:center; font-size: 17px;
+    box-shadow: 0 0 0 3px rgba(52,214,196,.15);
+  }
+  .hud-title .lvl-info{ line-height:1.15; }
+  .hud-title .lvl-label{ font-size: 9.5px; color: var(--muted); text-transform:uppercase; letter-spacing:1px; }
+  .hud-title .lvl-num{ font-size: 15px; font-weight: 800; }
+  .hud-actions{ display:flex; gap:6px; align-items:center; }
+  .icon-btn{
+    width: 28px; height:28px; border-radius: 8px; border: 1px solid var(--grid-line);
+    background: var(--panel-2); color: var(--muted);
+    display:flex; align-items:center; justify-content:center; font-size: 13px; cursor:pointer;
+  }
+  .streak{ display:flex; align-items:center; gap:4px; font-size: 12px; font-weight: 700; color: #FFB25E; }
+  .combo-tag{
+    font-size: 10px; font-weight: 800; color: var(--xp);
+    background: rgba(255,194,75,.14); border-radius: 20px; padding: 2px 8px;
+    display:none; align-items:center; gap:3px;
+  }
+  .combo-tag.show{ display:inline-flex; }
+
+  .xp-bar-wrap{ display:flex; align-items:center; gap:8px; }
+  .xp-bar{ flex:1; height: 10px; border-radius: 6px; background: var(--grid-line); overflow:hidden; position: relative; }
+  .xp-bar .fill{
+    height:100%; width:0%; border-radius:6px;
+    background: linear-gradient(90deg, #FFC24B, #FF8A5E);
+    transition: width .5s cubic-bezier(.2,.9,.3,1.3); position: relative;
+  }
+  .xp-bar .fill::after{
+    content:""; position:absolute; inset:0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+    animation: shimmer 2.2s infinite;
+  }
+  @keyframes shimmer{ 0%{ transform: translateX(-100%); } 100%{ transform: translateX(100%); } }
+  .xp-label{ font-size: 10px; color: var(--muted); white-space:nowrap; min-width: 62px; text-align:right; }
+
+  .quest-line{
+    margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--grid-line);
+    display:flex; align-items:center; justify-content:space-between; font-size: 11px; color: var(--muted);
+  }
+  .quest-line .qtxt{ display:flex; align-items:center; gap:6px; }
+  .quest-line .qprog{ font-weight: 800; color: var(--accent); }
+  .quest-line.claimed .qtxt{ color: var(--done); }
+
+  /* ---------- Tabs ---------- */
+  .tabs{
+    display:flex; gap: 4px; margin-bottom: 14px; background: var(--panel);
+    border: 1px solid var(--grid-line); border-radius: 12px; padding: 4px;
+  }
+  .tab{
+    flex:1; text-align:center; padding: 8px 2px; font-size: 10.8px; font-weight: 700;
+    color: var(--muted); border-radius: 9px; cursor:pointer; user-select:none;
+  }
+  .tab.active{ background: var(--panel-2); color: var(--accent); box-shadow: inset 0 0 0 1px var(--grid-line); }
+  .view{ display:none; }
+  .view.active{ display:block; }
+
+  .summary{ display:flex; gap: 10px; margin-bottom: 14px; }
+  .summary .stat{ flex:1; background: var(--panel); border: 1px solid var(--grid-line); border-radius: 12px; padding: 10px 12px; text-align: center; }
+  .summary .stat .num{ font-size: 19px; font-weight: 800; display:block; }
+  .summary .stat .lbl{ font-size: 9.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+
+  .section-add-btn{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    background: var(--panel-2); border: 1px dashed var(--grid-line); color: var(--accent);
+    font-weight: 700; font-size: 12.5px; border-radius: 12px; padding: 11px; margin-bottom: 14px; cursor: pointer;
+  }
+
+  /* ---------- Course / list cards ---------- */
+  .course{ background: var(--panel); border: 1px solid var(--grid-line); border-radius: 14px; margin-bottom: 12px; overflow: hidden; }
+  .course-head{ display:flex; align-items:center; gap: 10px; padding: 13px 14px; cursor: pointer; user-select: none; }
+  .dot{ width: 11px; height: 11px; border-radius: 50%; flex: none; }
+  .course-head .name{ flex: 1; font-size: 13.5px; font-weight: 700; line-height: 1.3; }
+  .course-head .count{ font-size: 11px; color: var(--muted); background: var(--panel-2); border-radius: 20px; padding: 3px 9px; white-space: nowrap; }
+  .chevron{ color: var(--muted); font-size: 11px; transition: transform .2s ease; flex: none; }
+  .course.open .chevron{ transform: rotate(90deg); }
+  .course-body{ display:none; padding: 0 14px 14px; }
+  .course.open .course-body{ display:block; }
+
+  .task-list{ list-style:none; margin:0; padding:0; }
+
+  .task{
+    padding: 10px 0; border-bottom: 1px solid var(--grid-line); position: relative;
+    border-left: 3px solid transparent; border-radius: 6px; transition: background .3s ease, border-color .3s ease;
+  }
+  .task:last-child{ border-bottom: none; }
+  .task-row{ display:flex; align-items: flex-start; gap: 9px; }
+  .task.urgent-pulse{ animation: urgentPulse 1.4s ease-in-out infinite; }
+  @keyframes urgentPulse{ 0%,100%{ box-shadow: 0 0 0 0 rgba(255,77,94,0); } 50%{ box-shadow: 0 0 10px 1px rgba(255,77,94,.35); } }
+  .task.missed{ opacity: .8; }
+  .task.missed .check{ background: var(--danger); border-color: var(--danger); color: #0B1220; opacity: .55; cursor: not-allowed; pointer-events: none; }
+  .task.missed .text{ text-decoration: line-through; color: var(--danger); }
+  .task .due{ font-size: 10.5px; color: var(--accent); margin-top: 2px; }
+  .task.done .due{ color: var(--muted); }
+  .task.missed .due{ color: var(--danger); font-weight: 700; }
+
+  .check{
+    width: 22px; height: 22px; border-radius: 7px; border: 1.5px solid var(--muted); flex: none; margin-top: 1px;
+    display:flex; align-items:center; justify-content:center; cursor: pointer; font-size: 13px; color: transparent;
+    transition: transform .15s ease, background .15s ease, border-color .15s ease;
+  }
+  .check:active{ transform: scale(.85); }
+  .task.done .check{ background: var(--done); border-color: var(--done); color: #0B1220; }
+  .check.pulse{ animation: pulseCheck .45s ease; }
+  @keyframes pulseCheck{ 0%{ box-shadow: 0 0 0 0 rgba(62,214,107,.7); } 70%{ box-shadow: 0 0 0 12px rgba(62,214,107,0); } 100%{ box-shadow: 0 0 0 0 rgba(62,214,107,0); } }
+
+  .task .body{ flex:1; min-width:0; cursor: pointer; }
+  .task .text{ font-size: 13px; line-height: 1.4; word-break: break-word; }
+  .task.done .text{ color: var(--muted); text-decoration: line-through; }
+  .task-badges{ display:flex; gap:5px; flex-wrap:wrap; margin-top:4px; align-items:center; }
+  .pri-tag{ font-size: 9px; font-weight: 800; padding: 1px 6px; border-radius: 8px; }
+  .pri-alta{ background: rgba(255,107,107,.16); color: var(--pri-alta); }
+  .pri-media{ background: rgba(255,194,75,.16); color: var(--pri-media); }
+  .pri-baja{ background: rgba(111,207,151,.16); color: var(--pri-baja); }
+  .xp-tag{ font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: var(--panel-2); color: var(--muted); }
+  .recur-tag{ font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: var(--panel-2); color: var(--accent); }
+  .subtask-progress{ font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: var(--panel-2); color: var(--muted); }
+  .urgent-tag{ display:inline-block; font-size: 9.5px; font-weight: 700; padding: 1px 7px; border-radius: 10px; background: rgba(255,77,94,.16); color: var(--danger); }
+
+  .task-actions{ flex:none; display:flex; flex-direction:column; gap:6px; align-items:center; }
+  .task-actions .mini-btn{ color: var(--muted); font-size: 13px; line-height: 1; padding: 2px 4px; cursor: pointer; }
+  .task-actions .mini-btn.del{ font-size: 16px; }
+
+  .subtasks{ margin: 8px 0 0 31px; display:none; }
+  .subtasks.open{ display:block; }
+  .subtask-item{ display:flex; align-items:center; gap:7px; padding: 4px 0; font-size: 12px; }
+  .subtask-item .sc{
+    width: 16px; height:16px; border-radius: 5px; border: 1.3px solid var(--muted); flex:none;
+    display:flex; align-items:center; justify-content:center; font-size: 10px; color:transparent; cursor:pointer;
+  }
+  .subtask-item.done .sc{ background: var(--done); border-color: var(--done); color:#0B1220; }
+  .subtask-item.done span.st-text{ text-decoration: line-through; color: var(--muted); }
+
+  .empty-note{ font-size: 12px; color: var(--muted); padding: 8px 0; font-style: italic; }
+  .tbd-tag{ font-size: 9.5px; color: #E8D06B; border: 1px solid #E8D06B; padding: 1px 6px; border-radius: 4px; margin-left: 4px; white-space: nowrap; }
+
+  .flat-card{ background: var(--panel); border: 1px solid var(--grid-line); border-radius: 14px; padding: 12px 14px 14px; margin-bottom: 14px; }
+
+  /* ---------- Events ---------- */
+  .event-card{ background: var(--panel); border: 1px solid var(--grid-line); border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; display:flex; gap: 12px; align-items: flex-start; }
+  .event-card.done{ opacity: .55; }
+  .event-date-badge{ flex: none; width: 46px; background: var(--panel-2); border: 1px solid var(--grid-line); border-radius: 10px; text-align:center; padding: 6px 0; }
+  .event-date-badge .day{ font-size: 17px; font-weight: 800; display:block; line-height:1; }
+  .event-date-badge .mon{ font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .event-body{ flex:1; min-width:0; cursor:pointer; }
+  .event-title{ font-size: 13.5px; font-weight: 700; }
+  .event-title.done{ text-decoration: line-through; color: var(--muted); }
+  .event-meta{ font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .event-countdown{ display:inline-block; margin-top: 5px; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+  .cd-today{ background: rgba(255,194,75,.15); color: var(--xp); }
+  .cd-soon{ background: rgba(52,214,196,.15); color: var(--accent); }
+  .cd-later{ background: var(--panel-2); color: var(--muted); }
+  .cd-past{ background: var(--panel-2); color: var(--muted); }
+  .cd-urgent{ background: rgba(255,77,94,.18); color: var(--danger); animation: urgentPulse 1.4s ease-in-out infinite; }
+  .event-actions{ flex:none; display:flex; flex-direction:column; gap:8px; align-items:center; }
+  .empty-big{ text-align:center; color: var(--muted); font-size: 12.5px; padding: 24px 10px; font-style: italic; }
+
+  footer{ text-align:center; color: var(--muted); font-size: 10.5px; margin-top: 18px; }
+  .reset-btn{ display:block; margin: 10px auto 0; background: transparent; border: 1px solid var(--grid-line); color: var(--muted); font-size: 11px; padding: 8px 16px; border-radius: 20px; cursor: pointer; }
+
+  /* ---------- Calendar view ---------- */
+  .cal-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px; }
+  .cal-header .cal-title{ font-size: 14px; font-weight: 800; text-transform: capitalize; }
+  .cal-nav{ display:flex; gap:8px; }
+  .cal-grid{ display:grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 14px; }
+  .cal-dow{ text-align:center; font-size: 9px; color: var(--muted); font-weight:700; padding-bottom:4px; }
+  .cal-cell{
+    aspect-ratio: 1; border-radius: 8px; background: var(--panel); border: 1px solid var(--grid-line);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; font-size: 11px; cursor:pointer;
+    position: relative;
+  }
+  .cal-cell.empty{ background: transparent; border-color: transparent; cursor:default; }
+  .cal-cell.today{ border-color: var(--accent); color: var(--accent); font-weight:800; }
+  .cal-cell.selected{ background: var(--panel-2); box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .cal-dots{ display:flex; gap:2px; margin-top:2px; }
+  .cal-dot{ width:4px; height:4px; border-radius:50%; }
+  .cal-day-panel{ background: var(--panel); border: 1px solid var(--grid-line); border-radius: 14px; padding: 12px 14px; }
+  .cal-day-title{ font-size: 12.5px; font-weight: 800; margin-bottom: 8px; color: var(--accent); }
+  .cal-item{ display:flex; align-items:center; gap:8px; padding: 6px 0; border-bottom: 1px solid var(--grid-line); font-size: 12px; }
+  .cal-item:last-child{ border-bottom:none; }
+  .cal-item .dot{ width:8px; height:8px; }
+
+  /* ---------- Modal (bottom sheet) ---------- */
+  .modal-overlay{
+    position: fixed; inset:0; background: rgba(6,10,20,.72); z-index: 1100;
+    display:flex; align-items:flex-end; justify-content:center;
+    opacity:0; pointer-events:none; transition: opacity .2s ease;
+  }
+  .modal-overlay.show{ opacity:1; pointer-events:auto; }
+  .modal-sheet{
+    background: #101A2C; border: 1px solid var(--grid-line); border-bottom:none;
+    border-radius: 20px 20px 0 0; width:100%; max-width: 560px; max-height: 88vh; overflow-y:auto;
+    padding: 18px 18px 24px; transform: translateY(30px); transition: transform .25s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .modal-overlay.show .modal-sheet{ transform: translateY(0); }
+  .modal-title{ font-size: 15px; font-weight: 800; margin-bottom: 14px; }
+  .field-label{ font-size: 10.5px; color: var(--muted); text-transform:uppercase; letter-spacing:.5px; margin: 12px 0 6px; font-weight:700; }
+  .field-label:first-of-type{ margin-top:0; }
+  .modal-input, .modal-textarea{
+    width:100%; background: var(--panel-2); border: 1px solid var(--grid-line); color: var(--ink);
+    border-radius: 9px; padding: 10px 11px; font-size: 13.5px; font-family: inherit;
+  }
+  .modal-textarea{ resize: vertical; min-height: 54px; }
+  .modal-row{ display:flex; gap:8px; }
+  .modal-row .modal-input{ flex:1; }
+  .seg{ display:flex; gap:6px; }
+  .seg-opt{
+    flex:1; text-align:center; padding: 8px 4px; font-size: 11.5px; font-weight:700; color: var(--muted);
+    background: var(--panel-2); border: 1px solid var(--grid-line); border-radius: 8px; cursor:pointer;
+  }
+  .seg-opt.sel-alta.active{ background: rgba(255,107,107,.18); color: var(--pri-alta); border-color: var(--pri-alta); }
+  .seg-opt.sel-media.active{ background: rgba(255,194,75,.18); color: var(--pri-media); border-color: var(--pri-media); }
+  .seg-opt.sel-baja.active{ background: rgba(111,207,151,.18); color: var(--pri-baja); border-color: var(--pri-baja); }
+  .seg-opt.sel-none.active{ background: var(--panel-2); color: var(--ink); border-color: var(--muted); }
+  .seg-opt.active{ background: rgba(52,214,196,.16); color: var(--accent); border-color: var(--accent); }
+
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; margin-top:12px; }
+  .toggle-row .tlabel{ font-size: 12.5px; font-weight:600; }
+  .switch{ width: 40px; height: 22px; border-radius: 20px; background: var(--grid-line); position:relative; cursor:pointer; flex:none; }
+  .switch.on{ background: var(--accent); }
+  .switch::after{ content:""; position:absolute; width:18px; height:18px; border-radius:50%; background:#fff; top:2px; left:2px; transition: left .18s ease; }
+  .switch.on::after{ left: 20px; }
+
+  .subtask-editor{ margin-top:6px; }
+  .subtask-edit-row{ display:flex; align-items:center; gap:6px; padding: 5px 0; }
+  .subtask-edit-row input[type="text"]{
+    flex:1; background: var(--panel-2); border: 1px solid var(--grid-line); color: var(--ink);
+    border-radius: 7px; padding: 7px 9px; font-size: 12.5px;
+  }
+  .subtask-edit-row .rm{ color: var(--muted); font-size:15px; cursor:pointer; padding: 2px 4px; }
+  .add-subtask-btn{
+    font-size: 11.5px; color: var(--accent); font-weight:700; cursor:pointer; margin-top:4px; display:inline-block;
+  }
+
+  .modal-actions{ display:flex; gap:10px; margin-top: 20px; }
+  .modal-btn{ flex:1; text-align:center; padding: 12px; border-radius: 10px; font-weight: 800; font-size: 13.5px; cursor:pointer; }
+  .modal-btn.cancel{ background: var(--panel-2); border: 1px solid var(--grid-line); color: var(--muted); }
+  .modal-btn.save{ background: var(--accent); color: #0B1220; }
+  .modal-btn.danger{ background: rgba(255,77,94,.14); color: var(--danger); border: 1px solid var(--danger); flex: none; padding: 12px 16px; }
+
+  /* ---------- Settings modal ---------- */
+  .settings-item{ display:flex; align-items:center; justify-content:space-between; padding: 11px 0; border-bottom: 1px solid var(--grid-line); }
+  .settings-item:last-child{ border-bottom:none; }
+  .settings-item .slabel{ font-size: 13px; font-weight:600; }
+  .settings-item .ssub{ font-size: 10.5px; color: var(--muted); margin-top:2px; }
+  .theme-swatches{ display:flex; gap:10px; margin-top:4px; }
+  .theme-swatch{ width: 28px; height:28px; border-radius:50%; cursor:pointer; border: 2px solid transparent; position:relative; }
+  .theme-swatch.selected{ border-color: #fff; }
+  .theme-swatch.locked::after{ content:"🔒"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:11px; background:rgba(0,0,0,.5); border-radius:50%; }
+  .backup-btns{ display:flex; gap:8px; margin-top: 6px; }
+  .backup-btns .modal-btn{ font-size:12px; padding:10px; }
+
+  /* ---------- Achievements ---------- */
+  .ach-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .ach-card{ background: var(--panel-2); border: 1px solid var(--grid-line); border-radius: 12px; padding: 12px 10px; text-align:center; opacity:.4; }
+  .ach-card.unlocked{ opacity:1; box-shadow: 0 0 0 1px var(--accent); }
+  .ach-card .aemoji{ font-size: 24px; display:block; margin-bottom:6px; }
+  .ach-card .atitle{ font-size: 11px; font-weight:800; }
+  .ach-card .adesc{ font-size: 9.5px; color: var(--muted); margin-top:3px; }
+
+  /* ---------- FX ---------- */
+  .xp-toast{
+    position: fixed; font-weight: 800; font-size: 13px; color: var(--xp); pointer-events: none; z-index: 1400;
+    animation: floatUp 1s ease-out forwards; text-shadow: 0 0 8px rgba(255,194,75,.6); text-align:center;
+  }
+  .xp-toast.loss{ color: var(--danger); text-shadow: 0 0 8px rgba(255,77,94,.6); }
+  .xp-toast .flavor{ display:block; font-size: 10px; font-weight:700; opacity:.85; margin-top:1px; }
+  @keyframes floatUp{
+    0%{ opacity: 0; transform: translateY(0) scale(.8); }
+    15%{ opacity: 1; transform: translateY(-6px) scale(1.15); }
+    100%{ opacity: 0; transform: translateY(-52px) scale(1); }
+  }
+  .confetti-piece{ position: fixed; width: 7px; height: 10px; top: 0; left: 0; z-index: 1398; pointer-events: none; border-radius: 1px; }
+
+  /* ---------- Crítico (recompensa variable) ---------- */
+  .xp-toast.crit{
+    font-size: 17px; color: var(--xp);
+    text-shadow: 0 0 4px #fff, 0 0 16px rgba(255,194,75,.9), 0 0 28px rgba(255,138,94,.6);
+    animation: critFloatUp 1.15s ease-out forwards;
+  }
+  @keyframes critFloatUp{
+    0%{ opacity: 0; transform: translateY(0) scale(.6) rotate(-4deg); }
+    12%{ opacity: 1; transform: translateY(-10px) scale(1.45) rotate(3deg); }
+    32%{ transform: translateY(-16px) scale(1.15) rotate(-2deg); }
+    100%{ opacity: 0; transform: translateY(-60px) scale(1) rotate(0deg); }
+  }
+  .crit-flash{
+    position: fixed; inset:0; z-index: 1301; pointer-events:none; opacity: 0;
+    background: radial-gradient(circle at var(--fx,50%) var(--fy,50%), rgba(255,194,75,.5), rgba(255,138,94,.15) 35%, transparent 60%);
+    animation: critFlashFade .6s ease-out forwards;
+  }
+  @keyframes critFlashFade{ 0%{ opacity: 1; } 100%{ opacity: 0; } }
+
+  /* ---------- Tablero limpio (materia / día completado) ---------- */
+  .course.cleared-flash{ animation: courseClearGlow 1.3s ease-out; }
+  @keyframes courseClearGlow{
+    0%{ box-shadow: 0 0 0 0 rgba(62,214,107,0); }
+    30%{ box-shadow: 0 0 0 3px rgba(62,214,107,.55), 0 0 26px 5px rgba(62,214,107,.35); }
+    100%{ box-shadow: 0 0 0 0 rgba(62,214,107,0); }
+  }
+  .board-clear-flash{
+    position: fixed; inset:0; z-index: 1350; pointer-events:none; opacity: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(255,194,75,.3), transparent 62%);
+    animation: boardClearFade 1s ease-out forwards;
+  }
+  @keyframes boardClearFade{ 0%{ opacity:0; } 18%{ opacity:1; } 100%{ opacity:0; } }
+  .clear-toast{
+    position: fixed; top: 14px; left: 50%; transform: translateX(-50%) translateY(-80px);
+    background: linear-gradient(135deg, #16223A, #101A2C); border: 1px solid var(--done);
+    border-radius: 14px; padding: 10px 18px; display:flex; align-items:center; gap:10px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.4); z-index: 1610; max-width: 90vw;
+    transition: transform .35s cubic-bezier(.2,1.3,.3,1);
+  }
+  .clear-toast.show{ transform: translateX(-50%) translateY(0); }
+  .clear-toast .cemoji{ font-size: 22px; }
+  .clear-toast .ctxt{ font-size: 12.5px; font-weight:700; }
+  .clear-toast.big{ border-color: var(--xp); box-shadow: 0 6px 30px rgba(255,194,75,.35); }
+
+  .levelup-overlay{
+    position: fixed; inset:0; background: rgba(6,10,20,.72); display:flex; align-items:center; justify-content:center;
+    z-index: 1500; opacity: 0; pointer-events: none; transition: opacity .25s ease;
+  }
+  .levelup-overlay.show{ opacity: 1; pointer-events: auto; }
+  .levelup-card{
+    background: linear-gradient(160deg, #16223A, #0B1220); border: 1px solid var(--accent);
+    box-shadow: 0 0 40px rgba(52,214,196,.35); border-radius: 22px; padding: 30px 26px; text-align:center;
+    transform: scale(.7); transition: transform .3s cubic-bezier(.2,1.4,.4,1); max-width: 320px;
+  }
+  .levelup-overlay.show .levelup-card{ transform: scale(1); }
+  .levelup-card .emoji{ font-size: 44px; display:block; margin-bottom: 8px; }
+  .levelup-card .big{ font-size: 22px; font-weight: 900; color: var(--accent); }
+  .levelup-card .sub{ font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  .ach-toast{
+    position: fixed; top: 14px; left: 50%; transform: translateX(-50%) translateY(-80px);
+    background: linear-gradient(135deg, #16223A, #101A2C); border: 1px solid var(--xp);
+    border-radius: 14px; padding: 10px 16px; display:flex; align-items:center; gap:10px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.4); z-index: 1600; max-width: 90vw;
+    transition: transform .35s cubic-bezier(.2,1.3,.3,1);
+  }
+  .ach-toast.show{ transform: translateX(-50%) translateY(0); }
+  .ach-toast .aemoji{ font-size: 22px; }
+  .ach-toast .atxt .t1{ font-size: 9.5px; color: var(--xp); font-weight:800; text-transform:uppercase; }
+  .ach-toast .atxt .t2{ font-size: 12.5px; font-weight:700; }
+
+  .hud.shake{ animation: hudShake .45s ease; }
+  @keyframes hudShake{ 0%,100%{ transform: translateX(0); } 20%{ transform: translateX(-6px); } 40%{ transform: translateX(5px); } 60%{ transform: translateX(-4px); } 80%{ transform: translateX(3px); } }
+
+  .quest-flash{ position: fixed; inset:0; background: radial-gradient(circle at var(--fx,50%) var(--fy,50%), rgba(62,214,107,.25), transparent 45%); pointer-events:none; z-index: 1300; opacity: 0; animation: flashFade .5s ease-out forwards; }
+  @keyframes flashFade{ 0%{ opacity: 1; } 100%{ opacity: 0; } }
+
+  .reminder-banner{
+    position: fixed; top: 0; left:0; right:0; background: var(--danger); color:#fff; font-size:12.5px; font-weight:700;
+    padding: 10px 16px; text-align:center; z-index: 1700; transform: translateY(-100%); transition: transform .3s ease;
+  }
+  .reminder-banner.show{ transform: translateY(0); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hud">
+    <div class="hud-top">
+      <div class="hud-title">
+        <div class="badge-icon" id="badge-icon">🛡️</div>
+        <div class="lvl-info">
+          <div class="lvl-label">Nivel</div>
+          <div class="lvl-num" id="lvl-num">1</div>
+        </div>
+      </div>
+      <div class="hud-actions">
+        <div class="combo-tag" id="combo-tag">🔥 Combo x1</div>
+        <div class="streak">🔥 <span id="streak-count">0</span></div>
+        <div class="icon-btn" id="ach-btn">🏅</div>
+        <div class="icon-btn" id="settings-btn">⚙️</div>
+      </div>
+    </div>
+    <div class="xp-bar-wrap">
+      <div class="xp-bar"><div class="fill" id="xp-fill"></div></div>
+      <div class="xp-label" id="xp-label">0 / 100 XP</div>
+    </div>
+    <div class="quest-line" id="quest-line">
+      <div class="qtxt">🎯 Misión diaria: completa <span class="qprog" id="quest-progress">0/3</span> tareas</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-view="materias">📚 Materias</div>
+    <div class="tab" data-view="personal">🎯 Personal</div>
+    <div class="tab" data-view="eventos">📅 Eventos</div>
+    <div class="tab" data-view="calendario">🗓️ Calendario</div>
+  </div>
+
+  <!-- ================= MATERIAS ================= -->
+  <div class="view active" id="view-materias">
+    <div class="summary">
+      <div class="stat"><span class="num" id="m-total">0</span><span class="lbl">Total</span></div>
+      <div class="stat"><span class="num" id="m-pending">0</span><span class="lbl">Pendientes</span></div>
+      <div class="stat"><span class="num" id="m-done">0</span><span class="lbl">Hechas</span></div>
+    </div>
+    <div id="courses"></div>
+  </div>
+
+  <!-- ================= PERSONAL ================= -->
+  <div class="view" id="view-personal">
+    <div class="summary">
+      <div class="stat"><span class="num" id="p-total">0</span><span class="lbl">Total</span></div>
+      <div class="stat"><span class="num" id="p-pending">0</span><span class="lbl">Pendientes</span></div>
+      <div class="stat"><span class="num" id="p-done">0</span><span class="lbl">Hechas</span></div>
+    </div>
+    <div class="section-add-btn" id="personal-add-btn">＋ Nueva tarea personal</div>
+    <div class="flat-card">
+      <ul class="task-list" id="personal-list"></ul>
+    </div>
+  </div>
+
+  <!-- ================= EVENTOS ================= -->
+  <div class="view" id="view-eventos">
+    <div class="section-add-btn" id="event-add-btn">＋ Nuevo evento</div>
+    <div id="events-list"></div>
+  </div>
+
+  <!-- ================= CALENDARIO ================= -->
+  <div class="view" id="view-calendario">
+    <div class="cal-header">
+      <div class="cal-nav"><div class="icon-btn" id="cal-prev">‹</div></div>
+      <div class="cal-title" id="cal-title">Agosto 2026</div>
+      <div class="cal-nav"><div class="icon-btn" id="cal-next">›</div></div>
+    </div>
+    <div class="cal-grid" id="cal-dow-row"></div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <div class="cal-day-panel">
+      <div class="cal-day-title" id="cal-day-title">Selecciona un día</div>
+      <div id="cal-day-items"></div>
+    </div>
+  </div>
+
+  <button class="reset-btn" id="reset-btn">Borrar todos los datos</button>
+  <footer>Todo se guarda automáticamente en este dispositivo.</footer>
+</div>
+
+<!-- Task editor modal -->
+<div class="modal-overlay" id="task-modal">
+  <div class="modal-sheet">
+    <div class="modal-title" id="task-modal-title">Nueva tarea</div>
+
+    <div class="field-label">Descripción</div>
+    <input type="text" class="modal-input" id="tm-text" placeholder="¿Qué hay que hacer?" />
+
+    <div class="field-label">Fecha y hora de entrega</div>
+    <div class="modal-row">
+      <input type="date" class="modal-input" id="tm-date" />
+      <input type="time" class="modal-input" id="tm-time" />
+    </div>
+
+    <div class="field-label">Prioridad</div>
+    <div class="seg" id="tm-priority">
+      <div class="seg-opt sel-none active" data-val="">Ninguna</div>
+      <div class="seg-opt sel-baja" data-val="baja">Baja</div>
+      <div class="seg-opt sel-media" data-val="media">Media</div>
+      <div class="seg-opt sel-alta" data-val="alta">Alta</div>
+    </div>
+
+    <div class="field-label">Dificultad (recompensa XP)</div>
+    <div class="seg" id="tm-difficulty">
+      <div class="seg-opt" data-val="5">Rápida · 5xp</div>
+      <div class="seg-opt active" data-val="10">Normal · 10xp</div>
+      <div class="seg-opt" data-val="20">Grande · 20xp</div>
+    </div>
+
+    <div class="field-label">Notas (opcional)</div>
+    <textarea class="modal-textarea" id="tm-notes" placeholder="Detalles, links, recordatorios..."></textarea>
+
+    <div class="field-label">Subtareas (opcional)</div>
+    <div class="subtask-editor" id="tm-subtasks"></div>
+    <div class="add-subtask-btn" id="tm-add-subtask">＋ Agregar subtarea</div>
+
+    <div class="toggle-row">
+      <div class="tlabel">🔁 Repetir cada semana</div>
+      <div class="switch" id="tm-recurring"></div>
+    </div>
+
+    <div class="modal-actions">
+      <div class="modal-btn danger" id="tm-delete" style="display:none;">🗑️</div>
+      <div class="modal-btn cancel" id="tm-cancel">Cancelar</div>
+      <div class="modal-btn save" id="tm-save">Guardar</div>
+    </div>
+  </div>
+</div>
+
+<!-- Event editor modal -->
+<div class="modal-overlay" id="event-modal">
+  <div class="modal-sheet">
+    <div class="modal-title" id="event-modal-title">Nuevo evento</div>
+
+    <div class="field-label">Nombre del evento</div>
+    <input type="text" class="modal-input" id="em-title" placeholder="Ej. Examen parcial, cumpleaños..." />
+
+    <div class="field-label">Fecha y hora</div>
+    <div class="modal-row">
+      <input type="date" class="modal-input" id="em-date" />
+      <input type="time" class="modal-input" id="em-time" />
+    </div>
+
+    <div class="field-label">Lugar (opcional)</div>
+    <input type="text" class="modal-input" id="em-location" placeholder="Aula, dirección..." />
+
+    <div class="field-label">Notas (opcional)</div>
+    <textarea class="modal-textarea" id="em-notes" placeholder="Detalles adicionales..."></textarea>
+
+    <div class="modal-actions">
+      <div class="modal-btn danger" id="em-delete" style="display:none;">🗑️</div>
+      <div class="modal-btn cancel" id="em-cancel">Cancelar</div>
+      <div class="modal-btn save" id="em-save">Guardar</div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal-sheet">
+    <div class="modal-title">Ajustes</div>
+
+    <div class="settings-item">
+      <div><div class="slabel">🔊 Sonido</div><div class="ssub">Efectos al completar tareas</div></div>
+      <div class="switch" id="set-mute"></div>
+    </div>
+    <div class="settings-item">
+      <div><div class="slabel">📳 Vibración</div><div class="ssub">Si tu dispositivo lo soporta</div></div>
+      <div class="switch" id="set-vibrate"></div>
+    </div>
+    <div class="settings-item">
+      <div><div class="slabel">🔔 Recordatorios</div><div class="ssub">Aviso cuando algo esté por vencer (con la app abierta)</div></div>
+      <div class="switch" id="set-notify"></div>
+    </div>
+    <div class="settings-item" style="display:block;">
+      <div class="slabel">🎨 Tema de color</div>
+      <div class="ssub">Se desbloquean nuevos colores al subir de nivel</div>
+      <div class="theme-swatches" id="theme-swatches"></div>
+    </div>
+    <div class="settings-item" style="display:block;">
+      <div class="slabel">💾 Respaldo de datos</div>
+      <div class="ssub">Guarda o restaura tu progreso, tareas y eventos</div>
+      <div class="backup-btns">
+        <div class="modal-btn save" id="btn-export" style="flex:1;">Exportar</div>
+        <div class="modal-btn cancel" id="btn-import" style="flex:1;">Importar</div>
+      </div>
+      <input type="file" id="import-file" accept="application/json" style="display:none;" />
+    </div>
+
+    <div class="modal-actions">
+      <div class="modal-btn save" id="settings-close" style="flex:1;">Cerrar</div>
+    </div>
+  </div>
+</div>
+
+<!-- Achievements modal -->
+<div class="modal-overlay" id="ach-modal">
+  <div class="modal-sheet">
+    <div class="modal-title">🏅 Logros</div>
+    <div class="ach-grid" id="ach-grid"></div>
+    <div class="modal-actions">
+      <div class="modal-btn save" id="ach-close" style="flex:1;">Cerrar</div>
+    </div>
+  </div>
+</div>
+
+<div class="levelup-overlay" id="levelup-overlay">
+  <div class="levelup-card">
+    <span class="emoji">🏆</span>
+    <div class="big" id="levelup-text">¡Subiste a nivel 2!</div>
+    <div class="sub" id="levelup-sub">Sigue completando misiones para avanzar</div>
+  </div>
+</div>
+
+<div class="reminder-banner" id="reminder-banner"></div>
+
+<script>
+/* ============================================================
+   DATA MODEL
+   ============================================================ */
+const COURSES = [
+  { id: "lab-control-accesos", name: "Laboratorio de control de accesos", color: "#4FA8FF" },
+  { id: "teoria-info-aplicada", name: "Teoría de la información aplicada", color: "#9B8CFF" },
+  { id: "deteccion-amenazas", name: "Reconocimiento y detección de amenazas", color: "#4FD1C5" },
+  { id: "control-accesos", name: "Control de accesos", color: "#F2A65A" },
+  { id: "blockchain-apps", name: "Aplicaciones basadas en cadena de bloques", color: "#D18FE0" },
+  { id: "grc", name: "Gobierno riesgo y cumplimiento", color: "#F27CA6" },
+  { id: "politicas-seguridad", name: "Diseño de políticas de seguridad", color: "#6FCF97" },
+  { id: "arq-seguridad", name: "Diseño de arquitecturas de seguridad informática", color: "#E8D06B", tbd: true },
+  { id: "operacion-seguridad", name: "Operación de la seguridad", color: "#7FB0E8", tbd: true },
+];
+
+const STORAGE_KEY = "quest_log_v3";
+const XP_PENALTY = 5;
+const XP_PER_LEVEL = 100;
+const CRIT_CHANCE = 1/8; // 1 de cada 8 tareas: golpe de suerte con XP x2
+const URGENCY_WINDOW_HOURS = 72;
+const DAY_MS = 86400000;
+
+const THEMES = [
+  { id: "teal",   label: "Turquesa", accent: "#34D6C4", accent2: "#1E9E8F", unlockLevel: 1 },
+  { id: "violet", label: "Violeta",  accent: "#9B8CFF", accent2: "#6C5CE7", unlockLevel: 3 },
+  { id: "gold",   label: "Dorado",   accent: "#FFC24B", accent2: "#E8A93C", unlockLevel: 5 },
+  { id: "crimson",label: "Carmesí",  accent: "#FF6B8B", accent2: "#D84A6B", unlockLevel: 8 },
+  { id: "mint",   label: "Menta",    accent: "#6FCF97", accent2: "#3FA36A", unlockLevel: 12 },
+];
+
+const ACHIEVEMENTS = [
+  { id: "first_task", emoji: "🌱", title: "Primer paso", desc: "Completa tu primera tarea", cond: s => s.totalCompleted >= 1 },
+  { id: "tasks_10", emoji: "📘", title: "Aplicado", desc: "Completa 10 tareas", cond: s => s.totalCompleted >= 10 },
+  { id: "tasks_50", emoji: "🎓", title: "Veterano", desc: "Completa 50 tareas", cond: s => s.totalCompleted >= 50 },
+  { id: "tasks_100", emoji: "👑", title: "Leyenda", desc: "Completa 100 tareas", cond: s => s.totalCompleted >= 100 },
+  { id: "streak_7", emoji: "🔥", title: "Constante", desc: "Racha de 7 días", cond: s => s.streak >= 7, sticky: true },
+  { id: "streak_30", emoji: "🌟", title: "Imparable", desc: "Racha de 30 días", cond: s => s.streak >= 30, sticky: true },
+  { id: "combo_5", emoji: "⚡", title: "Combo x5", desc: "5 tareas el mismo día", cond: s => s.maxCombo >= 5, sticky: true },
+  { id: "level_5", emoji: "🛡️", title: "Nivel 5", desc: "Alcanza el nivel 5", cond: s => s.level >= 5 },
+  { id: "level_10", emoji: "🏆", title: "Nivel 10", desc: "Alcanza el nivel 10", cond: s => s.level >= 10 },
+  { id: "night_owl", emoji: "🦉", title: "Búho nocturno", desc: "Completa una tarea después de las 9pm", cond: s => s.nightOwl, sticky: true },
+  { id: "early_bird", emoji: "🐦", title: "Madrugador", desc: "Completa una tarea antes de las 8am", cond: s => s.earlyBird, sticky: true },
+  { id: "clean_sheet", emoji: "🛡️", title: "Sin vencidas", desc: "10 tareas completadas sin ninguna vencida", cond: s => s.totalCompleted >= 10 && s.totalMissed === 0 },
+];
+
+const CELEBRATIONS = ["¡Genial!", "¡Sigue así!", "¡Imparable!", "¡Bien hecho!", "¡Como un profesional!", "¡Eso es!", "¡A por más!"];
+
+function defaultData(){
+  const courses = {};
+  COURSES.forEach(c => courses[c.id] = []);
+  return {
+    courses, personal: [], events: [],
+    xp: 0,
+    streak: { count: 0, lastDate: "" },
+    combo: { count: 0, lastDate: "", max: 0 },
+    stats: { totalCompleted: 0, totalMissed: 0, nightOwl: false, earlyBird: false },
+    achievements: {},
+    dailyQuest: { date: "", target: 3, progress: 0, claimed: false },
+    muted: false, vibrate: true, notify: false,
+    theme: "teal"
+  };
+}
+
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw){
+      const parsed = JSON.parse(raw);
+      const base = defaultData();
+      const merged = Object.assign(base, parsed);
+      merged.courses = Object.assign(base.courses, parsed.courses || {});
+      merged.streak = Object.assign(base.streak, parsed.streak || {});
+      merged.combo = Object.assign(base.combo, parsed.combo || {});
+      merged.stats = Object.assign(base.stats, parsed.stats || {});
+      merged.dailyQuest = Object.assign(base.dailyQuest, parsed.dailyQuest || {});
+      merged.achievements = parsed.achievements || {};
+      return merged;
+    }
+  }catch(e){}
+  return defaultData();
+}
+function saveData(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  }catch(e){
+    showReminderBanner("No se pudo guardar tu progreso (memoria llena o modo privado)");
+  }
+}
+
+let data = loadData();
+const openState = {};
+const subtaskOpenState = {};
+const courseClearState = {}; // courseId -> ya se celebró el cierre de esa materia
+let dayClearState = { date: "", celebrated: false };
+let editingTaskRef = null;
+let editingEventRef = null;
+let calCursor = new Date();
+let calSelectedDate = null;
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function todayStr(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function dateStr(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+
+/* ============================================================
+   SOUND
+   ============================================================ */
+let audioCtx = null;
+function ctx(){ if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); return audioCtx; }
+function tone(freq, start, dur, type, gainPeak){
+  const c = ctx();
+  const osc = c.createOscillator(); const gain = c.createGain();
+  osc.type = type || "sine"; osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, c.currentTime + start);
+  gain.gain.linearRampToValueAtTime(gainPeak || 0.12, c.currentTime + start + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + start + dur);
+  osc.connect(gain).connect(c.destination);
+  osc.start(c.currentTime + start); osc.stop(c.currentTime + start + dur + 0.02);
+}
+function playComplete(comboLevel, sizeTier, isCrit){
+  if (data.muted) return;
+  try{
+    if (isCrit){
+      [659.25,783.99,987.77,1318.5,1567.98].forEach((f,i)=> tone(f, i*0.05, 0.17, "triangle", 0.13));
+      return;
+    }
+    if (comboLevel >= 3 || sizeTier === "large"){
+      [523.25,659.25,783.99,1046.5].forEach((f,i)=> tone(f, i*0.06, 0.14, "triangle", 0.11));
+    } else if (sizeTier === "medium"){
+      tone(587.33, 0, 0.1, "triangle", 0.13);
+      tone(880, 0.06, 0.16, "triangle", 0.12);
+    } else {
+      tone(660, 0, 0.09, "triangle", 0.14);
+      tone(990, 0.07, 0.14, "triangle", 0.12);
+    }
+  }catch(e){}
+}
+function playLevelUp(){ if (data.muted) return; try{ [523.25,659.25,783.99,1046.5].forEach((f,i)=> tone(f, i*0.09, 0.18, "square", 0.1)); }catch(e){} }
+function playFail(){ if (data.muted) return; try{ tone(300, 0, 0.12, "sawtooth", 0.1); tone(190, 0.1, 0.22, "sawtooth", 0.09); }catch(e){} }
+function playAchievement(){ if (data.muted) return; try{ tone(784,0,0.1,"sine",0.12); tone(988,0.09,0.1,"sine",0.12); tone(1318,0.18,0.22,"sine",0.13); }catch(e){} }
+function playClear(big){
+  if (data.muted) return;
+  try{
+    if (big){
+      [392,523.25,659.25,783.99,1046.5].forEach((f,i)=> tone(f, i*0.08, 0.24, "sine", 0.1));
+    } else {
+      tone(523.25, 0, 0.12, "sine", 0.11);
+      tone(659.25, 0.09, 0.2, "sine", 0.1);
+    }
+  }catch(e){}
+}
+function vibrate(pattern){ if (data.vibrate && navigator.vibrate){ try{ navigator.vibrate(pattern); }catch(e){} } }
+
+/* ============================================================
+   FX: confetti / toast / flash / shake
+   ============================================================ */
+const CONFETTI_COLORS = ["#34D6C4","#FFC24B","#F27CA6","#9B8CFF","#4FA8FF","#6FCF97"];
+function burstConfetti(x, y, level){
+  level = Math.max(0, Math.min(2, level || 0));
+  const n = 22 + level*15;
+  const distBase = 40 + level*20;
+  for (let i=0;i<n;i++){
+    const el = document.createElement("div");
+    el.className = "confetti-piece";
+    el.style.background = CONFETTI_COLORS[Math.floor(Math.random()*CONFETTI_COLORS.length)];
+    el.style.left = x + "px"; el.style.top = y + "px";
+    const angle = Math.random() * Math.PI * 2;
+    const dist = distBase + Math.random()*80;
+    const dx = Math.cos(angle) * dist, dy = Math.sin(angle) * dist - 30;
+    const rot = Math.random()*360;
+    document.body.appendChild(el);
+    el.animate([
+      { transform: `translate(0,0) rotate(0deg)`, opacity: 1 },
+      { transform: `translate(${dx}px, ${dy + 90}px) rotate(${rot}deg)`, opacity: 0 }
+    ], { duration: 700 + Math.random()*300, easing: "cubic-bezier(.2,.8,.3,1)" });
+    setTimeout(()=> el.remove(), 1100);
+  }
+}
+function showXpToast(x, y, amount, flavor, isCrit){
+  const el = document.createElement("div");
+  const isLoss = String(amount).trim().startsWith("-");
+  el.className = "xp-toast" + (isLoss ? " loss" : "") + (isCrit ? " crit" : "");
+  el.style.left = (x - 20) + "px"; el.style.top = (y - 10) + "px";
+  const sign = isLoss ? "" : "+";
+  el.innerHTML = sign + amount + " XP" + (flavor ? `<span class="flavor">${flavor}</span>` : "");
+  document.body.appendChild(el);
+  setTimeout(()=> el.remove(), 1050);
+}
+function questFlash(x, y){
+  const el = document.createElement("div");
+  el.className = "quest-flash";
+  el.style.setProperty("--fx", x + "px"); el.style.setProperty("--fy", y + "px");
+  document.body.appendChild(el);
+  setTimeout(()=> el.remove(), 520);
+}
+function critFlash(x, y){
+  const el = document.createElement("div");
+  el.className = "crit-flash";
+  el.style.setProperty("--fx", x + "px"); el.style.setProperty("--fy", y + "px");
+  document.body.appendChild(el);
+  setTimeout(()=> el.remove(), 650);
+}
+// Celebración de "tablero limpio": al terminar una materia completa o todas las
+// tareas del día. big = true para el cierre del día (más grande que una materia).
+function celebrateBoardClear(message, big){
+  const flash = document.createElement("div");
+  flash.className = "board-clear-flash";
+  document.body.appendChild(flash);
+  setTimeout(()=> flash.remove(), 1000);
+
+  const w = window.innerWidth;
+  const points = big ? 5 : 3;
+  for (let i=0;i<points;i++){
+    setTimeout(()=> burstConfetti((w/(points+1))*(i+1), 30, big ? 2 : 1), i*90);
+  }
+
+  const el = document.createElement("div");
+  el.className = "clear-toast" + (big ? " big" : "");
+  el.innerHTML = `<span class="cemoji">${big ? "🧹" : "✨"}</span><div class="ctxt">${message}</div>`;
+  document.body.appendChild(el);
+  requestAnimationFrame(()=> el.classList.add("show"));
+  setTimeout(()=>{ el.classList.remove("show"); setTimeout(()=> el.remove(), 400); }, 2800);
+
+  playClear(big);
+  vibrate(big ? [20,40,20,40,20,80] : [20,40,20]);
+}
+function shakeHud(){
+  const hud = document.querySelector(".hud");
+  hud.classList.add("shake");
+  setTimeout(()=> hud.classList.remove("shake"), 460);
+}
+function showAchievementToast(ach){
+  const el = document.createElement("div");
+  el.className = "ach-toast";
+  el.innerHTML = `<span class="aemoji">${ach.emoji}</span><div class="atxt"><div class="t1">Logro desbloqueado</div><div class="t2">${ach.title}</div></div>`;
+  document.body.appendChild(el);
+  requestAnimationFrame(()=> el.classList.add("show"));
+  playAchievement();
+  vibrate([15,40,15]);
+  setTimeout(()=>{ el.classList.remove("show"); setTimeout(()=> el.remove(), 400); }, 2600);
+}
+
+/* ============================================================
+   LEVEL / XP / COMBO / STREAK / DAILY QUEST / ACHIEVEMENTS
+   ============================================================ */
+function levelOf(xp){ return Math.floor(xp / XP_PER_LEVEL) + 1; }
+
+function updateStreak(){
+  const today = todayStr();
+  if (data.streak.lastDate === today) return;
+  const y = new Date(); y.setDate(y.getDate()-1);
+  const yStr = dateStr(y);
+  data.streak.count = (data.streak.lastDate === yStr) ? data.streak.count + 1 : 1;
+  data.streak.lastDate = today;
+}
+
+function updateCombo(){
+  const today = todayStr();
+  if (data.combo.lastDate !== today){ data.combo.count = 0; data.combo.lastDate = today; }
+  data.combo.count += 1;
+  if (data.combo.count > data.combo.max) data.combo.max = data.combo.count;
+  return data.combo.count;
+}
+function comboMultiplier(count){ if (count >= 5) return 3; if (count >= 3) return 2; return 1; }
+
+function ensureDailyQuest(){
+  const today = todayStr();
+  if (data.dailyQuest.date !== today){
+    data.dailyQuest = { date: today, target: 2 + Math.floor(Math.random()*3), progress: 0, claimed: false };
+  }
+}
+
+function checkAchievements(){
+  const s = {
+    totalCompleted: data.stats.totalCompleted,
+    totalMissed: data.stats.totalMissed,
+    streak: data.streak.count,
+    maxCombo: data.combo.max,
+    level: levelOf(data.xp),
+    nightOwl: data.stats.nightOwl,
+    earlyBird: data.stats.earlyBird,
+  };
+  const newlyUnlocked = [];
+  ACHIEVEMENTS.forEach(a => {
+    if (!data.achievements[a.id] && a.cond(s)){
+      data.achievements[a.id] = true;
+      newlyUnlocked.push(a);
+    }
+  });
+  if (newlyUnlocked.length){
+    saveData();
+    newlyUnlocked.forEach((a, i) => setTimeout(()=> showAchievementToast(a), i*2800));
+  }
+  return newlyUnlocked;
+}
+
+// Un-checking or deleting a completed task can drop stats (totalCompleted, level, etc.)
+// below what an achievement required. Non-sticky achievements (regular progress
+// milestones) get revoked in that case; sticky ones (records/one-time events like a
+// streak once reached, a past combo, or having ever completed a task at night) stay.
+function revokeStaleAchievements(){
+  const s = {
+    totalCompleted: data.stats.totalCompleted,
+    totalMissed: data.stats.totalMissed,
+    streak: data.streak.count,
+    maxCombo: data.combo.max,
+    level: levelOf(data.xp),
+    nightOwl: data.stats.nightOwl,
+    earlyBird: data.stats.earlyBird,
+  };
+  let changed = false;
+  ACHIEVEMENTS.forEach(a => {
+    if (data.achievements[a.id] && !a.sticky && !a.cond(s)){
+      delete data.achievements[a.id];
+      changed = true;
+    }
+  });
+  if (changed) saveData();
+  return changed;
+}
+
+// Todas las tareas (materias + personal) cuya fecha de entrega es hoy.
+function getTodayTasks(){
+  const today = todayStr();
+  const all = [];
+  Object.values(data.courses).forEach(list => all.push(...list));
+  all.push(...data.personal);
+  return all.filter(t => t.due === today);
+}
+function checkDayClear(){
+  const today = todayStr();
+  if (dayClearState.date !== today) dayClearState = { date: today, celebrated: false };
+  const todayTasks = getTodayTasks();
+  const pending = todayTasks.filter(t => !t.done && !t.missed).length;
+  if (todayTasks.length > 0 && pending === 0){
+    if (!dayClearState.celebrated){
+      dayClearState.celebrated = true;
+      celebrateBoardClear("¡Día completado! Todo limpio 🧹", true);
+    }
+  } else {
+    dayClearState.celebrated = false;
+  }
+}
+
+function unlockedThemesForLevel(level){ return THEMES.filter(t => t.unlockLevel <= level); }
+
+function applyTheme(){
+  const level = levelOf(data.xp);
+  const unlocked = unlockedThemesForLevel(level).map(t=>t.id);
+  if (!unlocked.includes(data.theme)) data.theme = "teal";
+  const t = THEMES.find(x => x.id === data.theme) || THEMES[0];
+  document.documentElement.style.setProperty("--accent", t.accent);
+  document.documentElement.style.setProperty("--accent-2", t.accent2);
+}
+
+// central XP award used by tasks (materias/personal) AND events.
+// Returns the actual amount of XP granted (after the combo multiplier) so the
+// caller can store it on the item and reverse it precisely if un-checked/deleted later.
+function awardXp(clientX, clientY, baseXp){
+  const oldLevel = levelOf(data.xp);
+  const comboCount = updateCombo();
+  const mult = comboMultiplier(comboCount);
+  const base = baseXp || 10;
+  const isCrit = Math.random() < CRIT_CHANCE; // golpe de suerte: 1 de cada 8
+  const critMult = isCrit ? 2 : 1;
+  const gained = base * mult * critMult;
+  data.xp += gained;
+  data.stats.totalCompleted += 1;
+
+  const hour = new Date().getHours();
+  if (hour >= 21 || hour < 4) data.stats.nightOwl = true;
+  if (hour >= 4 && hour < 8) data.stats.earlyBird = true;
+
+  updateStreak();
+  ensureDailyQuest();
+  let questJustCompleted = false;
+  if (!data.dailyQuest.claimed){
+    data.dailyQuest.progress = Math.min(data.dailyQuest.target, data.dailyQuest.progress + 1);
+    if (data.dailyQuest.progress >= data.dailyQuest.target){
+      data.dailyQuest.claimed = true;
+      questJustCompleted = true;
+      data.xp += 15;
+    }
+  }
+
+  const newLevel = levelOf(data.xp);
+  // Tareas "Grande" (20xp) tienen una celebración proporcionalmente mayor;
+  // "Rápida" (5xp) se queda en la celebración mínima.
+  const sizeTier = base >= 20 ? "large" : base >= 10 ? "medium" : "small";
+  const flavor = CELEBRATIONS[Math.floor(Math.random()*CELEBRATIONS.length)];
+  let toastFlavor;
+  if (isCrit){
+    toastFlavor = mult > 1 ? `¡CRÍTICO! x2 · Combo x${mult}` : "¡CRÍTICO! x2";
+  } else if (mult > 1){
+    toastFlavor = `Combo x${mult}! ${flavor}`;
+  } else if (sizeTier === "large"){
+    toastFlavor = `${flavor} 💪`;
+  } else {
+    toastFlavor = flavor;
+  }
+  const fxLevel = isCrit ? 2 : (mult >= 3 || sizeTier === "large") ? 2 : (mult >= 2 || sizeTier === "medium") ? 1 : 0;
+
+  showXpToast(clientX, clientY, gained, toastFlavor, isCrit);
+  burstConfetti(clientX, clientY, fxLevel);
+  if (isCrit) critFlash(clientX, clientY);
+  questFlash(clientX, clientY);
+  playComplete(comboCount, sizeTier, isCrit);
+  vibrate(isCrit ? [25,40,25,40,25,70] : fxLevel === 2 ? [20,35,20,35,45] : fxLevel === 1 ? [18,25,20] : [18]);
+  saveData();
+  renderHud();
+
+  if (questJustCompleted){
+    setTimeout(()=> showXpToast(clientX, clientY - 30, 15, "¡Misión diaria completa!"), 350);
+  }
+  if (newLevel > oldLevel){
+    setTimeout(()=> showLevelUp(newLevel), 300);
+  }
+  setTimeout(()=> checkAchievements(), 250);
+  checkDayClear();
+  // Se devuelve tanto el XP normal como el bono de misión diaria (si se ganó aquí),
+  // para que el llamador pueda guardarlos en el item y revertirlos con precisión
+  // si la tarea se desmarca o se borra después.
+  return { gained, questBonus: questJustCompleted ? 15 : 0 };
+}
+
+// Reverses the XP/stat effects of an item (task or event) when it is un-checked
+// or deleted after having been completed or penalized. clientX/clientY are optional
+// (omit them to skip the floating "-N XP" toast, e.g. for a silent bulk operation).
+function reverseItemXp(item, clientX, clientY){
+  let changed = false;
+  if (item.xpAwarded && item.xpGained){
+    const lost = item.xpGained;
+    data.xp = Math.max(0, data.xp - lost);
+    data.stats.totalCompleted = Math.max(0, data.stats.totalCompleted - 1);
+    item.xpAwarded = false;
+    item.xpGained = 0;
+    changed = true;
+    if (clientX != null) showXpToast(clientX, clientY, "-" + lost, "Tarea desmarcada");
+  }
+  if (item.questBonusGiven){
+    const bonus = item.questBonusGiven;
+    data.xp = Math.max(0, data.xp - bonus);
+    item.questBonusGiven = 0;
+    // Si la misión diaria de HOY sigue siendo la misma que otorgó este bono,
+    // se des-reclama para que no quede "completada" fantasma sin una tarea que la respalde.
+    if (data.dailyQuest.date === todayStr() && data.dailyQuest.claimed){
+      data.dailyQuest.claimed = false;
+      data.dailyQuest.progress = Math.max(0, data.dailyQuest.progress - 1);
+    }
+    changed = true;
+    if (clientX != null) showXpToast(clientX, clientY, "-" + bonus, "Bono de misión diaria");
+  }
+  if (item.penaltyApplied){
+    data.xp += XP_PENALTY;
+    data.stats.totalMissed = Math.max(0, data.stats.totalMissed - 1);
+    item.penaltyApplied = false;
+    item.missed = false;
+    changed = true;
+  }
+  if (changed){
+    saveData();
+    renderHud();
+    revokeStaleAchievements();
+    checkDayClear();
+  }
+  return changed;
+}
+
+function showLevelUp(newLevel){
+  applyTheme();
+  const overlay = document.getElementById("levelup-overlay");
+  document.getElementById("levelup-text").textContent = `¡Subiste a nivel ${newLevel}!`;
+  const newTheme = THEMES.find(t => t.unlockLevel === newLevel);
+  document.getElementById("levelup-sub").textContent = newTheme
+    ? `Nuevo tema desbloqueado: ${newTheme.label} 🎨`
+    : "Sigue completando misiones para avanzar";
+  overlay.classList.add("show");
+  playLevelUp();
+  vibrate([30,50,30,50,60]);
+  setTimeout(()=> overlay.classList.remove("show"), 2200);
+}
+document.getElementById("levelup-overlay").addEventListener("click", function(){ this.classList.remove("show"); });
+
+/* ============================================================
+   DEADLINES: urgency + missed/penalty + recurring
+   ============================================================ */
+function getDueDateTime(due, dueTime){
+  if (!due) return null;
+  return new Date(due + "T" + (dueTime || "23:59") + ":00");
+}
+function getUrgency(due, dueTime, done, missed){
+  if (done || missed || !due) return null;
+  const dueDT = getDueDateTime(due, dueTime);
+  if (!dueDT) return null;
+  const hoursLeft = (dueDT - new Date()) / 3600000;
+  if (hoursLeft <= 0 || hoursLeft >= URGENCY_WINDOW_HOURS) return null;
+  return { ratio: 1 - (hoursLeft / URGENCY_WINDOW_HOURS), hoursLeft };
+}
+function formatTimeLeft(hoursLeft){
+  if (hoursLeft < 1) return `¡Vence en ${Math.max(1, Math.round(hoursLeft*60))} min!`;
+  if (hoursLeft < 24) return `¡Vence en ${Math.round(hoursLeft)}h!`;
+  return `Vence en ${Math.round(hoursLeft/24)} días`;
+}
+function applyUrgencyStyle(el, urgency){
+  if (!urgency){ el.style.borderLeftColor = "transparent"; el.style.background = ""; el.classList.remove("urgent-pulse"); return; }
+  const alpha = 0.25 + urgency.ratio * 0.75;
+  el.style.borderLeftColor = `rgba(255,77,94,${alpha})`;
+  el.style.background = `rgba(255,77,94,${urgency.ratio * 0.10})`;
+  el.classList.toggle("urgent-pulse", urgency.hoursLeft < 12);
+}
+
+function spawnNextRecurrence(task){
+  const due = getDueDateTime(task.due, task.dueTime);
+  if (!due) return null;
+  const next = new Date(due.getTime() + 7*DAY_MS);
+  return {
+    id: uid(), text: task.text, due: dateStr(next), dueTime: task.dueTime || "",
+    done: false, xpAwarded: false, missed: false, penaltyApplied: false,
+    priority: task.priority || "", xp: task.xp || 10, notes: task.notes || "",
+    subtasks: (task.subtasks||[]).map(s => ({ id: uid(), text: s.text, done: false })),
+    recurring: true, nextSpawned: false
+  };
+}
+
+function checkOverdueList(list){
+  const now = new Date();
+  let penalized = false;
+  (list || []).forEach(t => {
+    if (t.due){
+      const dueDT = getDueDateTime(t.due, t.dueTime);
+      if (dueDT && now > dueDT){
+        if (!t.done && !t.missed){
+          t.missed = true;
+          if (!t.penaltyApplied){
+            t.penaltyApplied = true;
+            data.xp = Math.max(0, data.xp - XP_PENALTY);
+            data.stats.totalMissed += 1;
+            data.combo.count = 0;
+            penalized = true;
+          }
+        }
+        if (t.recurring && !t.nextSpawned){
+          t.nextSpawned = true;
+          const spawned = spawnNextRecurrence(t);
+          if (spawned) list.push(spawned);
+        }
+      }
+    }
+  });
+  return penalized;
+}
+
+function checkAllOverdue(){
+  let penalized = false;
+  Object.keys(data.courses).forEach(cid => { if (checkOverdueList(data.courses[cid])) penalized = true; });
+  if (checkOverdueList(data.personal)) penalized = true;
+  if (penalized){
+    saveData();
+    shakeHud();
+    playFail();
+    const hud = document.querySelector(".hud");
+    const rect = hud.getBoundingClientRect();
+    showXpToast(rect.left + rect.width/2, rect.top + rect.height/2, "-" + XP_PENALTY, "Tarea vencida");
+  }
+  return penalized;
+}
+
+/* ============================================================
+   HUD render
+   ============================================================ */
+function renderHud(){
+  ensureDailyQuest();
+  const level = levelOf(data.xp);
+  const progress = data.xp % XP_PER_LEVEL;
+  document.getElementById("lvl-num").textContent = level;
+  document.getElementById("xp-fill").style.width = progress + "%";
+  document.getElementById("xp-label").textContent = `${progress} / ${XP_PER_LEVEL} XP`;
+  document.getElementById("streak-count").textContent = data.streak.count || 0;
+
+  const today = todayStr();
+  const comboNow = (data.combo.lastDate === today) ? data.combo.count : 0;
+  const comboTag = document.getElementById("combo-tag");
+  const mult = comboMultiplier(comboNow);
+  if (comboNow >= 3){
+    comboTag.classList.add("show");
+    comboTag.textContent = `🔥 Combo x${mult}`;
+  } else {
+    comboTag.classList.remove("show");
+  }
+
+  const ql = document.getElementById("quest-line");
+  ql.classList.toggle("claimed", data.dailyQuest.claimed);
+  ql.querySelector(".qtxt").innerHTML = data.dailyQuest.claimed
+    ? `✅ Misión diaria completada (+15 XP)`
+    : `🎯 Misión diaria: completa <span class="qprog" id="quest-progress">${data.dailyQuest.progress}/${data.dailyQuest.target}</span> tareas`;
+
+  applyTheme();
+}
+
+/* ============================================================
+   Tabs
+   ============================================================ */
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById("view-" + tab.dataset.view).classList.add("active");
+    if (tab.dataset.view === "calendario") renderCalendar();
+  });
+});
+
+/* ============================================================
+   TASK EDITOR MODAL
+   ============================================================ */
+let tmSubtasksDraft = [];
+
+function openTaskModal(list, task){
+  editingTaskRef = { list, task: task || null };
+  document.getElementById("task-modal-title").textContent = task ? "Editar tarea" : "Nueva tarea";
+  document.getElementById("tm-text").value = task ? task.text : "";
+  document.getElementById("tm-date").value = task ? (task.due || "") : "";
+  document.getElementById("tm-time").value = task ? (task.dueTime || "") : "";
+  setSeg("tm-priority", task ? (task.priority || "") : "");
+  setSeg("tm-difficulty", String(task ? (task.xp || 10) : 10));
+  document.getElementById("tm-notes").value = task ? (task.notes || "") : "";
+  tmSubtasksDraft = task && task.subtasks ? task.subtasks.map(s => ({...s})) : [];
+  renderSubtaskDraft();
+  document.getElementById("tm-recurring").classList.toggle("on", !!(task && task.recurring));
+  document.getElementById("tm-delete").style.display = task ? "block" : "none";
+  document.getElementById("task-modal").classList.add("show");
+}
+function closeTaskModal(){ document.getElementById("task-modal").classList.remove("show"); editingTaskRef = null; }
+
+function setSeg(containerId, val){
+  document.querySelectorAll(`#${containerId} .seg-opt`).forEach(el => {
+    el.classList.toggle("active", el.dataset.val === val);
+  });
+}
+document.querySelectorAll("#tm-priority .seg-opt").forEach(el => el.addEventListener("click", () => setSeg("tm-priority", el.dataset.val)));
+document.querySelectorAll("#tm-difficulty .seg-opt").forEach(el => el.addEventListener("click", () => setSeg("tm-difficulty", el.dataset.val)));
+document.getElementById("tm-recurring").addEventListener("click", function(){ this.classList.toggle("on"); });
+
+function renderSubtaskDraft(){
+  const wrap = document.getElementById("tm-subtasks");
+  wrap.innerHTML = "";
+  tmSubtasksDraft.forEach((s, idx) => {
+    const row = document.createElement("div");
+    row.className = "subtask-edit-row";
+    row.innerHTML = `<input type="text" value="${s.text.replace(/"/g,'&quot;')}" placeholder="Subtarea..." /><span class="rm">&times;</span>`;
+    row.querySelector("input").addEventListener("input", (e) => { tmSubtasksDraft[idx].text = e.target.value; });
+    row.querySelector(".rm").addEventListener("click", () => { tmSubtasksDraft.splice(idx,1); renderSubtaskDraft(); });
+    wrap.appendChild(row);
+  });
+}
+document.getElementById("tm-add-subtask").addEventListener("click", () => {
+  tmSubtasksDraft.push({ id: uid(), text: "", done: false });
+  renderSubtaskDraft();
+});
+
+document.getElementById("tm-cancel").addEventListener("click", closeTaskModal);
+document.getElementById("task-modal").addEventListener("click", (e) => { if (e.target.id === "task-modal") closeTaskModal(); });
+
+document.getElementById("tm-delete").addEventListener("click", () => {
+  if (!editingTaskRef || !editingTaskRef.task) return;
+  const { list, task } = editingTaskRef;
+  reverseItemXp(task);
+  const idx = list.indexOf(task);
+  if (idx > -1) list.splice(idx, 1);
+  saveData();
+  closeTaskModal();
+  renderCourses(); renderPersonal();
+});
+
+document.getElementById("tm-save").addEventListener("click", () => {
+  const text = document.getElementById("tm-text").value.trim();
+  if (!text) return;
+  const due = document.getElementById("tm-date").value;
+  const dueTime = document.getElementById("tm-time").value;
+  const priority = document.querySelector("#tm-priority .seg-opt.active").dataset.val;
+  const xp = parseInt(document.querySelector("#tm-difficulty .seg-opt.active").dataset.val, 10);
+  const notes = document.getElementById("tm-notes").value.trim();
+  const recurring = document.getElementById("tm-recurring").classList.contains("on");
+  const subtasks = tmSubtasksDraft.filter(s => s.text.trim()).map(s => ({ id: s.id || uid(), text: s.text.trim(), done: !!s.done }));
+
+  if (editingTaskRef.task){
+    Object.assign(editingTaskRef.task, { text, due, dueTime, priority, xp, notes, subtasks, recurring });
+    if (due && editingTaskRef.task.missed && getDueDateTime(due, dueTime) > new Date()){
+      editingTaskRef.task.missed = false; editingTaskRef.task.penaltyApplied = false; editingTaskRef.task.nextSpawned = false;
+    }
+  } else {
+    editingTaskRef.list.push({
+      id: uid(), text, due, dueTime, done: false, xpAwarded: false, missed: false, penaltyApplied: false,
+      priority, xp, notes, subtasks, recurring, nextSpawned: false
+    });
+  }
+  saveData();
+  closeTaskModal();
+  renderCourses(); renderPersonal();
+});
+
+document.getElementById("personal-add-btn").addEventListener("click", () => openTaskModal(data.personal, null));
+
+/* ============================================================
+   EVENT EDITOR MODAL
+   ============================================================ */
+function openEventModal(ev){
+  editingEventRef = ev || null;
+  document.getElementById("event-modal-title").textContent = ev ? "Editar evento" : "Nuevo evento";
+  document.getElementById("em-title").value = ev ? ev.title : "";
+  document.getElementById("em-date").value = ev ? ev.date : "";
+  document.getElementById("em-time").value = ev ? (ev.time || "") : "";
+  document.getElementById("em-location").value = ev ? (ev.location || "") : "";
+  document.getElementById("em-notes").value = ev ? (ev.notes || "") : "";
+  document.getElementById("em-delete").style.display = ev ? "block" : "none";
+  document.getElementById("event-modal").classList.add("show");
+}
+function closeEventModal(){ document.getElementById("event-modal").classList.remove("show"); editingEventRef = null; }
+document.getElementById("event-add-btn").addEventListener("click", () => openEventModal(null));
+document.getElementById("em-cancel").addEventListener("click", closeEventModal);
+document.getElementById("event-modal").addEventListener("click", (e) => { if (e.target.id === "event-modal") closeEventModal(); });
+
+document.getElementById("em-delete").addEventListener("click", () => {
+  if (!editingEventRef) return;
+  reverseItemXp(editingEventRef);
+  data.events = data.events.filter(e => e.id !== editingEventRef.id);
+  saveData(); closeEventModal(); renderEvents();
+});
+
+document.getElementById("em-save").addEventListener("click", () => {
+  const title = document.getElementById("em-title").value.trim();
+  const dateVal = document.getElementById("em-date").value;
+  if (!title || !dateVal) return;
+  const time = document.getElementById("em-time").value;
+  const location = document.getElementById("em-location").value.trim();
+  const notes = document.getElementById("em-notes").value.trim();
+
+  if (editingEventRef){
+    Object.assign(editingEventRef, { title, date: dateVal, time, location, notes });
+  } else {
+    data.events.push({ id: uid(), title, date: dateVal, time, location, notes, done: false, xpAwarded: false, notified: {} });
+  }
+  saveData(); closeEventModal(); renderEvents();
+});
+
+/* ============================================================
+   Generic task item builder (materias & personal share this)
+   ============================================================ */
+function buildTaskItem(task, onChange){
+  const li = document.createElement("li");
+  li.className = "task" + (task.done ? " done" : "") + (task.missed ? " missed" : "");
+
+  const row = document.createElement("div");
+  row.className = "task-row";
+
+  const check = document.createElement("div");
+  check.className = "check";
+  check.innerHTML = task.missed ? "&#10007;" : "&#10003;";
+  check.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (task.missed) return;
+    const rect = check.getBoundingClientRect();
+    const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+    const wasDone = task.done;
+    task.done = !task.done;
+    if (task.done && !wasDone){
+      check.classList.add("pulse");
+      setTimeout(()=> check.classList.remove("pulse"), 460);
+      if (task.subtasks && task.subtasks.length){ task.subtasks.forEach(s => s.done = true); }
+      if (!task.xpAwarded){
+        const res = awardXp(cx, cy, task.xp || 10);
+        task.xpGained = res.gained;
+        task.questBonusGiven = res.questBonus || 0;
+        task.xpAwarded = true;
+      }
+    } else if (!task.done && wasDone){
+      if (task.subtasks && task.subtasks.length){ task.subtasks.forEach(s => s.done = false); }
+      reverseItemXp(task, cx, cy);
+    }
+    onChange();
+  });
+
+  const bodyDiv = document.createElement("div");
+  bodyDiv.className = "body";
+  bodyDiv.addEventListener("click", () => {
+    if (task.subtasks && task.subtasks.length){
+      subtaskOpenState[task.id] = !subtaskOpenState[task.id];
+      onChange();
+    } else {
+      openTaskModal(currentListFor(task), task);
+    }
+  });
+
+  const textDiv = document.createElement("div");
+  textDiv.className = "text";
+  textDiv.textContent = task.text;
+  bodyDiv.appendChild(textDiv);
+
+  const badges = document.createElement("div");
+  badges.className = "task-badges";
+  if (task.priority){
+    const p = document.createElement("span");
+    p.className = "pri-tag pri-" + task.priority;
+    p.textContent = task.priority === "alta" ? "🔺 Alta" : task.priority === "media" ? "◆ Media" : "▽ Baja";
+    badges.appendChild(p);
+  }
+  if (task.recurring){
+    const r = document.createElement("span");
+    r.className = "recur-tag"; r.textContent = "🔁 Semanal";
+    badges.appendChild(r);
+  }
+  if (task.subtasks && task.subtasks.length){
+    const sc = task.subtasks.filter(s=>s.done).length;
+    const st = document.createElement("span");
+    st.className = "subtask-progress";
+    st.textContent = `☑ ${sc}/${task.subtasks.length}`;
+    badges.appendChild(st);
+  }
+  if (badges.children.length) bodyDiv.appendChild(badges);
+
+  if (task.missed){
+    const dueDiv = document.createElement("div");
+    dueDiv.className = "due"; dueDiv.textContent = "✕ No entregada";
+    bodyDiv.appendChild(dueDiv);
+  } else if (task.due){
+    const dueDiv = document.createElement("div");
+    dueDiv.className = "due";
+    const [y,m,d] = task.due.split("-");
+    let txt = `Entrega: ${d}/${m}/${y}`;
+    if (task.dueTime) txt += ` · ${task.dueTime}`;
+    dueDiv.textContent = txt;
+    bodyDiv.appendChild(dueDiv);
+
+    const urgency = getUrgency(task.due, task.dueTime, task.done, task.missed);
+    if (urgency && !task.done){
+      const tag = document.createElement("div");
+      tag.className = "urgent-tag"; tag.textContent = formatTimeLeft(urgency.hoursLeft);
+      bodyDiv.appendChild(tag);
+    }
+    applyUrgencyStyle(li, urgency);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "task-actions";
+  const editBtn = document.createElement("div");
+  editBtn.className = "mini-btn"; editBtn.innerHTML = "&#9998;";
+  editBtn.addEventListener("click", (e) => { e.stopPropagation(); openTaskModal(currentListFor(task), task); });
+  const del = document.createElement("div");
+  del.className = "mini-btn del"; del.innerHTML = "&times;";
+  del.addEventListener("click", (e) => {
+    e.stopPropagation();
+    reverseItemXp(task);
+    const list = currentListFor(task);
+    const idx = list.indexOf(task);
+    if (idx > -1) list.splice(idx, 1);
+    saveData(); onChange();
+  });
+  actions.appendChild(editBtn);
+  actions.appendChild(del);
+
+  row.appendChild(check);
+  row.appendChild(bodyDiv);
+  row.appendChild(actions);
+  li.appendChild(row);
+
+  if (task.subtasks && task.subtasks.length){
+    const sub = document.createElement("div");
+    sub.className = "subtasks" + (subtaskOpenState[task.id] ? " open" : "");
+    task.subtasks.forEach(st => {
+      const sRow = document.createElement("div");
+      sRow.className = "subtask-item" + (st.done ? " done" : "");
+      sRow.innerHTML = `<div class="sc">&#10003;</div><span class="st-text">${st.text}</span>`;
+      sRow.querySelector(".sc").addEventListener("click", (e) => {
+        e.stopPropagation();
+        st.done = !st.done;
+        const rect = sRow.getBoundingClientRect();
+        if (task.subtasks.every(s => s.done) && !task.done && !task.missed){
+          task.done = true;
+          if (!task.xpAwarded){
+            const res = awardXp(rect.left+10, rect.top, task.xp || 10);
+            task.xpGained = res.gained;
+            task.questBonusGiven = res.questBonus || 0;
+            task.xpAwarded = true;
+          }
+        } else if (!task.subtasks.every(s => s.done) && task.done){
+          task.done = false;
+          reverseItemXp(task, rect.left+10, rect.top);
+        }
+        saveData(); onChange();
+      });
+      sub.appendChild(sRow);
+    });
+    li.appendChild(sub);
+  }
+
+  return li;
+}
+
+function currentListFor(task){
+  if (data.personal.includes(task)) return data.personal;
+  for (const cid of Object.keys(data.courses)){
+    if (data.courses[cid].includes(task)) return data.courses[cid];
+  }
+  return data.personal;
+}
+
+/* ============================================================
+   MATERIAS render
+   ============================================================ */
+function renderCourses(){
+  checkAllOverdue();
+  const container = document.getElementById("courses");
+  container.innerHTML = "";
+  let total = 0, done = 0, missedCount = 0;
+
+  COURSES.forEach(course => {
+    const tasks = data.courses[course.id] || [];
+    total += tasks.length;
+    done += tasks.filter(t => t.done).length;
+    missedCount += tasks.filter(t => t.missed).length;
+    const pending = tasks.filter(t => !t.done && !t.missed).length;
+
+    const courseEl = document.createElement("div");
+    courseEl.className = "course" + (openState[course.id] ? " open" : "");
+
+    const head = document.createElement("div");
+    head.className = "course-head";
+    head.innerHTML = `
+      <span class="dot" style="background:${course.color}"></span>
+      <span class="name">${course.name}${course.tbd ? '<span class="tbd-tag">Hora TBD</span>' : ''}</span>
+      <span class="count">${pending} pend.</span>
+      <span class="chevron">&#9656;</span>
+    `;
+    head.addEventListener("click", () => { openState[course.id] = !openState[course.id]; renderCourses(); });
+    courseEl.appendChild(head);
+
+    const body = document.createElement("div");
+    body.className = "course-body";
+    const list = document.createElement("ul");
+    list.className = "task-list";
+
+    if (tasks.length === 0){
+      const note = document.createElement("div");
+      note.className = "empty-note"; note.textContent = "Sin tareas todavía.";
+      list.appendChild(note);
+    } else {
+      tasks.forEach(task => list.appendChild(buildTaskItem(task, renderCourses)));
+    }
+    body.appendChild(list);
+
+    const addBtn = document.createElement("div");
+    addBtn.className = "section-add-btn";
+    addBtn.style.marginBottom = "0";
+    addBtn.textContent = "＋ Nueva tarea";
+    addBtn.addEventListener("click", () => openTaskModal(data.courses[course.id], null));
+    body.appendChild(addBtn);
+
+    courseEl.appendChild(body);
+    container.appendChild(courseEl);
+
+    // Cierre de círculo: toda la materia quedó completa (no solo una tarea suelta).
+    if (tasks.length > 0 && pending === 0){
+      if (!courseClearState[course.id]){
+        courseClearState[course.id] = true;
+        courseEl.classList.add("cleared-flash");
+        setTimeout(()=> courseEl.classList.remove("cleared-flash"), 1300);
+        celebrateBoardClear(`¡${course.name} completada! 🎉`, false);
+      }
+    } else {
+      courseClearState[course.id] = false;
+    }
+  });
+
+  document.getElementById("m-total").textContent = total;
+  document.getElementById("m-pending").textContent = total - done - missedCount;
+  document.getElementById("m-done").textContent = done;
+}
+
+/* ============================================================
+   PERSONAL render
+   ============================================================ */
+function renderPersonal(){
+  checkAllOverdue();
+  const list = document.getElementById("personal-list");
+  list.innerHTML = "";
+  const tasks = data.personal;
+  const done = tasks.filter(t=>t.done).length;
+  const missedCount = tasks.filter(t=>t.missed).length;
+
+  if (tasks.length === 0){
+    const note = document.createElement("div");
+    note.className = "empty-note"; note.textContent = "Sin pendientes personales todavía. ¡Agrega tu primera misión!";
+    list.appendChild(note);
+  } else {
+    tasks.forEach(task => list.appendChild(buildTaskItem(task, renderPersonal)));
+  }
+
+  document.getElementById("p-total").textContent = tasks.length;
+  document.getElementById("p-pending").textContent = tasks.length - done - missedCount;
+  document.getElementById("p-done").textContent = done;
+}
+
+/* ============================================================
+   EVENTOS render
+   ============================================================ */
+function daysUntil(dateStrVal){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const target = new Date(dateStrVal + "T00:00:00");
+  return Math.round((target - today) / DAY_MS);
+}
+
+function renderEvents(){
+  const container = document.getElementById("events-list");
+  container.innerHTML = "";
+  const sorted = [...data.events].sort((a,b) => (a.date+((a.time)||"00:00")).localeCompare(b.date+((b.time)||"00:00")));
+
+  if (sorted.length === 0){
+    const note = document.createElement("div");
+    note.className = "empty-big"; note.textContent = "No tienes eventos próximos. Agrega el primero arriba.";
+    container.appendChild(note);
+    return;
+  }
+
+  const MONTHS = ["ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC"];
+
+  sorted.forEach(ev => {
+    const d = new Date(ev.date + "T00:00:00");
+    const diff = daysUntil(ev.date);
+
+    const card = document.createElement("div");
+    card.className = "event-card" + (ev.done ? " done" : "");
+
+    const badge = document.createElement("div");
+    badge.className = "event-date-badge";
+    badge.innerHTML = `<span class="day">${d.getDate()}</span><span class="mon">${MONTHS[d.getMonth()]}</span>`;
+
+    const bodyDiv = document.createElement("div");
+    bodyDiv.className = "event-body";
+    bodyDiv.addEventListener("click", () => openEventModal(ev));
+    const title = document.createElement("div");
+    title.className = "event-title" + (ev.done ? " done" : "");
+    title.textContent = ev.title;
+    bodyDiv.appendChild(title);
+
+    const meta = document.createElement("div");
+    meta.className = "event-meta";
+    let metaParts = [];
+    if (ev.time) metaParts.push(ev.time);
+    if (ev.location) metaParts.push(ev.location);
+    meta.textContent = metaParts.join(" · ");
+    if (metaParts.length) bodyDiv.appendChild(meta);
+
+    const cd = document.createElement("span");
+    let cdText, cdClass;
+    const dueDT = getDueDateTime(ev.date, ev.time);
+    const hoursLeft = dueDT ? (dueDT - new Date()) / 3600000 : null;
+
+    if (ev.done){ cdText = "Confirmado"; cdClass = "cd-past"; }
+    else if (diff < 0 || (hoursLeft !== null && hoursLeft <= 0)){ cdText = "Pasado"; cdClass = "cd-past"; }
+    else if (hoursLeft !== null && hoursLeft <= 24){ cdText = formatTimeLeft(hoursLeft); cdClass = "cd-urgent"; }
+    else if (diff === 0){ cdText = "¡Hoy!"; cdClass = "cd-today"; }
+    else if (diff === 1){ cdText = "Mañana"; cdClass = "cd-soon"; }
+    else if (diff <= 7){ cdText = `En ${diff} días`; cdClass = "cd-soon"; }
+    else { cdText = `En ${diff} días`; cdClass = "cd-later"; }
+    cd.className = "event-countdown " + cdClass; cd.textContent = cdText;
+    bodyDiv.appendChild(document.createElement("br"));
+    bodyDiv.appendChild(cd);
+
+    const actions = document.createElement("div");
+    actions.className = "event-actions";
+
+    const check = document.createElement("div");
+    check.className = "check" + (ev.done ? " done" : "");
+    check.innerHTML = "&#10003;";
+    check.style.borderColor = ev.done ? "var(--done)" : "";
+    check.style.background = ev.done ? "var(--done)" : "";
+    check.style.color = ev.done ? "#0B1220" : "transparent";
+    check.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const rect = check.getBoundingClientRect();
+      const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+      const wasDone = ev.done;
+      ev.done = !ev.done;
+      if (ev.done && !wasDone){
+        if (!ev.xpAwarded){
+          const res = awardXp(cx, cy, 10);
+          ev.xpGained = res.gained;
+          ev.questBonusGiven = res.questBonus || 0;
+          ev.xpAwarded = true;
+        }
+      } else if (!ev.done && wasDone){
+        reverseItemXp(ev, cx, cy);
+      }
+      saveData(); renderEvents();
+    });
+
+    const del = document.createElement("div");
+    del.className = "mini-btn del"; del.innerHTML = "&times;";
+    del.addEventListener("click", (e) => {
+      e.stopPropagation();
+      reverseItemXp(ev);
+      data.events = data.events.filter(e2 => e2.id !== ev.id);
+      saveData(); renderEvents();
+    });
+
+    actions.appendChild(check);
+    actions.appendChild(del);
+
+    card.appendChild(badge);
+    card.appendChild(bodyDiv);
+    card.appendChild(actions);
+    container.appendChild(card);
+  });
+}
+
+/* ============================================================
+   CALENDARIO render
+   ============================================================ */
+const MONTH_NAMES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const DOW_NAMES = ["D","L","M","M","J","V","S"];
+
+function collectItemsForDate(dStr){
+  const items = [];
+  COURSES.forEach(course => {
+    (data.courses[course.id]||[]).forEach(t => {
+      if (t.due === dStr) items.push({ type: "task", color: course.color, label: t.text, sub: course.name, time: t.dueTime, done: t.done, missed: t.missed });
+    });
+  });
+  data.personal.forEach(t => {
+    if (t.due === dStr) items.push({ type: "task", color: "#7C8AA8", label: t.text, sub: "Personal", time: t.dueTime, done: t.done, missed: t.missed });
+  });
+  data.events.forEach(ev => {
+    if (ev.date === dStr) items.push({ type: "event", color: "#34D6C4", label: ev.title, sub: ev.location || "Evento", time: ev.time, done: ev.done, missed: false });
+  });
+  items.sort((a,b) => (a.time||"99:99").localeCompare(b.time||"99:99"));
+  return items;
+}
+
+function renderCalendar(){
+  const year = calCursor.getFullYear(), month = calCursor.getMonth();
+  document.getElementById("cal-title").textContent = `${MONTH_NAMES[month]} ${year}`;
+
+  const dowRow = document.getElementById("cal-dow-row");
+  dowRow.innerHTML = DOW_NAMES.map(d => `<div class="cal-dow">${d}</div>`).join("");
+
+  const grid = document.getElementById("cal-grid");
+  grid.innerHTML = "";
+  const firstDay = new Date(year, month, 1);
+  const startOffset = firstDay.getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const todayS = todayStr();
+
+  for (let i=0;i<startOffset;i++){
+    const c = document.createElement("div"); c.className = "cal-cell empty"; grid.appendChild(c);
+  }
+  for (let day=1; day<=daysInMonth; day++){
+    const dObj = new Date(year, month, day);
+    const dStr = dateStr(dObj);
+    const items = collectItemsForDate(dStr);
+    const cell = document.createElement("div");
+    cell.className = "cal-cell" + (dStr === todayS ? " today" : "") + (dStr === calSelectedDate ? " selected" : "");
+    cell.innerHTML = `<span>${day}</span>`;
+    if (items.length){
+      const dotsWrap = document.createElement("div");
+      dotsWrap.className = "cal-dots";
+      items.slice(0,4).forEach(it => {
+        const dot = document.createElement("div");
+        dot.className = "cal-dot";
+        dot.style.background = it.missed ? "#FF4D5E" : it.color;
+        dotsWrap.appendChild(dot);
+      });
+      cell.appendChild(dotsWrap);
+    }
+    cell.addEventListener("click", () => { calSelectedDate = dStr; renderCalendar(); });
+    grid.appendChild(cell);
+  }
+
+  const dayTitle = document.getElementById("cal-day-title");
+  const dayItems = document.getElementById("cal-day-items");
+  if (!calSelectedDate){
+    dayTitle.textContent = "Selecciona un día";
+    dayItems.innerHTML = "";
+  } else {
+    const [yy,mm,dd] = calSelectedDate.split("-");
+    dayTitle.textContent = `${dd}/${mm}/${yy}`;
+    const items = collectItemsForDate(calSelectedDate);
+    dayItems.innerHTML = "";
+    if (!items.length){
+      dayItems.innerHTML = `<div class="empty-note">Sin tareas ni eventos este día.</div>`;
+    } else {
+      items.forEach(it => {
+        const row = document.createElement("div");
+        row.className = "cal-item";
+        const status = it.missed ? " (vencida)" : it.done ? " (hecha)" : "";
+        row.innerHTML = `<div class="dot" style="background:${it.missed ? '#FF4D5E' : it.color}"></div><div style="flex:1;">${it.label}${status}<div style="color:var(--muted);font-size:10.5px;">${it.sub}${it.time ? " · " + it.time : ""}</div></div>`;
+        dayItems.appendChild(row);
+      });
+    }
+  }
+}
+document.getElementById("cal-prev").addEventListener("click", () => { calCursor.setMonth(calCursor.getMonth()-1); renderCalendar(); });
+document.getElementById("cal-next").addEventListener("click", () => { calCursor.setMonth(calCursor.getMonth()+1); renderCalendar(); });
+
+/* ============================================================
+   SETTINGS modal
+   ============================================================ */
+function renderSettings(){
+  document.getElementById("set-mute").classList.toggle("on", !data.muted);
+  document.getElementById("set-vibrate").classList.toggle("on", data.vibrate);
+  document.getElementById("set-notify").classList.toggle("on", data.notify);
+
+  const level = levelOf(data.xp);
+  const wrap = document.getElementById("theme-swatches");
+  wrap.innerHTML = "";
+  THEMES.forEach(t => {
+    const unlocked = t.unlockLevel <= level;
+    const sw = document.createElement("div");
+    sw.className = "theme-swatch" + (unlocked ? "" : " locked") + (data.theme === t.id ? " selected" : "");
+    sw.style.background = t.accent;
+    sw.title = unlocked ? t.label : `${t.label} (nivel ${t.unlockLevel})`;
+    if (unlocked){
+      sw.addEventListener("click", () => { data.theme = t.id; saveData(); applyTheme(); renderSettings(); });
+    }
+    wrap.appendChild(sw);
+  });
+}
+
+document.getElementById("settings-btn").addEventListener("click", () => { renderSettings(); document.getElementById("settings-modal").classList.add("show"); });
+document.getElementById("settings-close").addEventListener("click", () => document.getElementById("settings-modal").classList.remove("show"));
+document.getElementById("settings-modal").addEventListener("click", (e) => { if (e.target.id === "settings-modal") e.currentTarget.classList.remove("show"); });
+
+document.getElementById("set-mute").addEventListener("click", function(){ data.muted = !data.muted; saveData(); renderSettings(); });
+document.getElementById("set-vibrate").addEventListener("click", function(){ data.vibrate = !data.vibrate; saveData(); renderSettings(); });
+document.getElementById("set-notify").addEventListener("click", function(){
+  if (!data.notify && "Notification" in window && Notification.permission !== "granted"){
+    Notification.requestPermission().then(perm => {
+      data.notify = perm === "granted";
+      saveData(); renderSettings();
+    });
+  } else {
+    data.notify = !data.notify; saveData(); renderSettings();
+  }
+});
+
+/* ---- Export / Import backup ---- */
+document.getElementById("btn-export").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `quest_log_backup_${todayStr()}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+document.getElementById("btn-import").addEventListener("click", () => document.getElementById("import-file").click());
+document.getElementById("import-file").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const parsed = JSON.parse(reader.result);
+      if (confirm("¿Reemplazar todos tus datos actuales con este respaldo?")){
+        const base = defaultData();
+        data = Object.assign(base, parsed);
+        data.courses = Object.assign(base.courses, parsed.courses || {});
+        data.streak = Object.assign(base.streak, parsed.streak || {});
+        data.combo = Object.assign(base.combo, parsed.combo || {});
+        data.stats = Object.assign(base.stats, parsed.stats || {});
+        data.dailyQuest = Object.assign(base.dailyQuest, parsed.dailyQuest || {});
+        data.achievements = parsed.achievements || {};
+        saveData();
+        renderAll();
+        document.getElementById("settings-modal").classList.remove("show");
+      }
+    }catch(err){ alert("El archivo no es un respaldo válido."); }
+  };
+  reader.readAsText(file);
+  e.target.value = "";
+});
+
+/* ============================================================
+   ACHIEVEMENTS modal
+   ============================================================ */
+function renderAchModal(){
+  const grid = document.getElementById("ach-grid");
+  grid.innerHTML = "";
+  ACHIEVEMENTS.forEach(a => {
+    const unlocked = !!data.achievements[a.id];
+    const card = document.createElement("div");
+    card.className = "ach-card" + (unlocked ? " unlocked" : "");
+    card.innerHTML = `<span class="aemoji">${unlocked ? a.emoji : "🔒"}</span><div class="atitle">${a.title}</div><div class="adesc">${a.desc}</div>`;
+    grid.appendChild(card);
+  });
+}
+document.getElementById("ach-btn").addEventListener("click", () => { renderAchModal(); document.getElementById("ach-modal").classList.add("show"); });
+document.getElementById("ach-close").addEventListener("click", () => document.getElementById("ach-modal").classList.remove("show"));
+document.getElementById("ach-modal").addEventListener("click", (e) => { if (e.target.id === "ach-modal") e.currentTarget.classList.remove("show"); });
+
+/* ============================================================
+   REMINDERS
+   ============================================================ */
+function showReminderBanner(text){
+  const el = document.getElementById("reminder-banner");
+  el.textContent = "🔔 " + text;
+  el.classList.add("show");
+  setTimeout(()=> el.classList.remove("show"), 5000);
+}
+function checkReminders(){
+  if (!data.notify) return;
+  const now = new Date();
+  function scan(list, kind){
+    (list||[]).forEach(item => {
+      const dateVal = kind === "event" ? item.date : item.due;
+      if (!dateVal || item.done || item.missed) return;
+      const dt = getDueDateTime(dateVal, kind === "event" ? item.time : item.dueTime);
+      if (!dt) return;
+      const minsLeft = (dt - now) / 60000;
+      item._notified = item._notified || {};
+      const label = kind === "event" ? item.title : item.text;
+      [60, 15].forEach(threshold => {
+        if (minsLeft <= threshold && minsLeft > threshold - 2 && !item._notified[threshold]){
+          item._notified[threshold] = true;
+          const msg = `"${label}" vence en ${threshold} min`;
+          showReminderBanner(msg);
+          if ("Notification" in window && Notification.permission === "granted"){
+            try{ new Notification("Quest Log", { body: msg }); }catch(e){}
+          }
+          playFail();
+        }
+      });
+    });
+  }
+  Object.values(data.courses).forEach(list => scan(list, "task"));
+  scan(data.personal, "task");
+  scan(data.events, "event");
+}
+
+/* ============================================================
+   Reset & bootstrap
+   ============================================================ */
+document.getElementById("reset-btn").addEventListener("click", () => {
+  if (confirm("¿Borrar TODAS las tareas, eventos y tu progreso (nivel/XP/logros)? Esta acción no se puede deshacer.")){
+    data = defaultData();
+    saveData();
+    renderAll();
+  }
+});
+
+function renderAll(){
+  checkAllOverdue();
+  renderHud();
+  renderCourses();
+  renderPersonal();
+  renderEvents();
+  if (document.getElementById("view-calendario").classList.contains("active")) renderCalendar();
+  revokeStaleAchievements();
+  checkAchievements();
+}
+
+applyTheme();
+renderAll();
+setInterval(() => {
+  checkAllOverdue();
+  renderHud();
+  renderCourses();
+  renderPersonal();
+  renderEvents();
+  checkReminders();
+}, 60000);
+
+/* ============================================================
+   PWA: registro del Service Worker (habilita instalación y modo offline)
+   ============================================================ */
+if ("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("service-worker.js").catch(() => {});
+  });
+}
+</script>
+
+</body>
+</html>
